@@ -1,0 +1,17 @@
+{
+  "name": "abaayaat",
+  "version": "1.0.0",
+  "main": "a.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "type": "module",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "csv-writer": "^1.6.0",
+    "express": "^4.21.1",
+    "mongoose": "^8.8.2",
+    "puppeteer": "^23.8.0"
+  }
+}
