@@ -35,27 +35,124 @@ router.get('/scrape/status', async (req, res) => {
 
 // Export products to CSV
 router.get('/export-csv', async (req, res) => {
+    const exportPath = path.join(process.cwd(), 'exports');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `abyat-products-${timestamp}.csv`;
+    const filepath = path.join(exportPath, filename);
+
     try {
-        const products = await Product.find({}, { _id: 0, __v: 0 }).lean();
-        
-        if (products.length === 0) {
-            return res.status(404).json({ error: 'No products found' });
+        // Create exports directory if it doesn't exist
+        if (!fs.existsSync(exportPath)) {
+            fs.mkdirSync(exportPath, { recursive: true });
         }
 
+        // Fetch all products
+        const products = await Product.find({}, { _id: 0, __v: 0, createdAt: 0, updatedAt: 0 }).lean();
+        
+        if (products.length === 0) {
+            return res.status(404).json({ error: 'No products found to export' });
+        }
+
+        // Define CSV header
         const csvWriter = createObjectCsvWriter({
-            path: 'products-export.csv',
+            path: filepath,
             header: [
-                {id: 'sku', title: 'sku'},
-                {id: 'barcode', title: 'barcode'},
-                // ... (previous header configuration)
+                { id: 'sku', title: 'SKU' },
+                { id: 'barcode', title: 'Barcode' },
+                { id: 'store', title: 'Store' },
+                { id: 'view_code', title: 'View Code' },
+                { id: 'attribute_set_code', title: 'Attribute Set Code' },
+                { id: 'product_type', title: 'Product Type' },
+                { id: 'product_websites', title: 'Product Websites' },
+                { id: 'link_url', title: 'Link URL' },
+                { id: 'name', title: 'Name' },
+                { id: 'meta_title', title: 'Meta Title' },
+                { id: 'url_key', title: 'URL Key' },
+                { id: 'description', title: 'Description' },
+                { id: 'short_description', title: 'Short Description' },
+                { id: 'categories1', title: 'Categories1' },
+                { id: 'categories2', title: 'Categories2' },
+                { id: 'categories3', title: 'Categories3' },
+                { id: 'categories', title: 'Categories' },
+                { id: 'raw_materials_n', title: 'Raw Materials N' },
+                { id: 'style', title: 'Style' },
+                { id: 'color', title: 'Color' },
+                { id: 'ts_dimensions_height', title: 'TS Dimensions Height' },
+                { id: 'ts_dimensions_width', title: 'TS Dimensions Width' },
+                { id: 'ts_dimensions_length', title: 'TS Dimensions Length' },
+                { id: 'weight', title: 'Weight' },
+                { id: 'manufacturer', title: 'Manufacturer' },
+                { id: 'cost', title: 'Cost' },
+                { id: 'price', title: 'Price' },
+                { id: 'special_price', title: 'Special Price' },
+                { id: 'visibility', title: 'Visibility' },
+                { id: 'tax_class_name', title: 'Tax Class Name' },
+                { id: 'news_from_date', title: 'News From Date' },
+                { id: 'news_to_date', title: 'News To Date' },
+                { id: 'base_image', title: 'Base Image' },
+                { id: 'small_image', title: 'Small Image' },
+                { id: 'swatch_image', title: 'Swatch Image' },
+                { id: 'thumbnail_image', title: 'Thumbnail Image' },
+                { id: 'additional_images', title: 'Additional Images' },
+                { id: 'product_online', title: 'Product Online' },
+                { id: 'qty', title: 'Qty' },
+                { id: 'max_cart_qty', title: 'Max Cart Qty' },
+                { id: 'out_of_stock_qty', title: 'Out of Stock Qty' },
+                { id: 'allow_backorders', title: 'Allow Backorders' },
+                { id: 'is_in_stock', title: 'Is In Stock' },
+                { id: 'manage_stock', title: 'Manage Stock' },
+                { id: 'vendor_score', title: 'Vendor Score' },
+                { id: 'supplier', title: 'Supplier' },
+                { id: 'mgs_brand', title: 'MGS Brand' }
             ]
         });
 
-        await csvWriter.writeRecords(products);
+        // Process products to ensure all fields are properly formatted
+        const processedProducts = products.map(product => ({
+            ...product,
+            store: product.store || 'default',
+            view_code: product.view_code || '',
+            attribute_set_code: product.attribute_set_code || 'default',
+            product_type: product.product_type || 'simple',
+            product_websites: product.product_websites || 'base',
+            link_url: product.link_url || '',
+            visibility: product.visibility || 'catalog,search',
+            tax_class_name: product.tax_class_name || 'Taxable Goods',
+            news_from_date: product.news_from_date || '',
+            news_to_date: product.news_to_date || '',
+            special_price: product.special_price || '',
+            out_of_stock_qty: product.out_of_stock_qty || '0',
+            allow_backorders: product.allow_backorders || '0',
+            vendor_score: product.vendor_score || '',
+            product_online: product.is_in_stock ? '1' : '0',
+            is_in_stock: product.qty > 0 ? '1' : '0',
+            manage_stock: '1'
+        }));
 
-        res.download('products-export.csv', 'abyat-products.csv');
+        // Write to CSV file
+        await csvWriter.writeRecords(processedProducts);
+
+        // Set response headers
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+
+        // Stream the file
+        const fileStream = fs.createReadStream(filepath);
+        fileStream.pipe(res);
+
+        // Clean up the file after sending
+        fileStream.on('end', () => {
+            fs.unlink(filepath, (err) => {
+                if (err) console.error('Error deleting temporary file:', err);
+            });
+        });
+
     } catch (error) {
-        res.status(500).json({ error: 'Export failed', details: error.message });
+        console.error('Export error:', error);
+        res.status(500).json({ 
+            error: 'Failed to export products', 
+            details: error.message 
+        });
     }
 });
 
