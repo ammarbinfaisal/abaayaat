@@ -6,6 +6,10 @@ import { handleBulkInsert } from './bulkInsert.js';
 
 let scraping = false;
 
+const removeQueryParams = (url) => {
+    return url.split('?')[0];
+}
+
 export async function startScraping() {
     if (scraping) {
         console.log("Already scraping");
@@ -66,7 +70,7 @@ export async function startScraping() {
 
                     // Get product URL and ID
                     const fullUrl = linkEl?.href || '';
-                    const productId = fullUrl.split('products/')[1] || '';
+                    const productId = removeQueryParams(fullUrl.split('products/')[1] || '');
 
                     // Extract product name and ensure it's not empty
                     const productName = titleEl?.textContent?.trim() || 'Untitled Product';
@@ -150,9 +154,9 @@ export async function startScraping() {
             });
 
             // Filter out any products with invalid required fields
-            const validProducts = products.filter(product => 
-                product.name && 
-                product.sku && 
+            const validProducts = products.filter(product =>
+                product.name &&
+                product.sku &&
                 product.name !== 'Untitled Product'
             );
 
