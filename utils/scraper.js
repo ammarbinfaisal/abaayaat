@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import puppeteer from 'puppeteer';
 import { setTimeout } from 'timers/promises';
 import { Product } from '../models/product.js';
+import { handleBulkInsert } from './bulkInsert.js';
 
 let scraping = false;
 
@@ -14,7 +15,7 @@ export async function startScraping() {
     scraping = true;
 
     const browser = await puppeteer.launch({
-        headless: false,
+        headless: true,
         defaultViewport: { width: 1920, height: 1080 }
     });
 
@@ -29,12 +30,17 @@ export async function startScraping() {
 
         while (hasNextPage) {
             console.log(`Scraping page ${currentPage}...`);
+            const url = `https://www.abyat.com/sa/ar/category/wall_art_and_mirrors?page=${currentPage}`;
 
-            await page.goto(`https://www.abyat.com/sa/ar/category/wall_art_and_mirrors?page=${currentPage}`, {
-                waitUntil: 'networkidle0'
+            console.log('Loading page...', url);
+            await page.goto(url, {
+                waitUntil: 'domcontentloaded',
+                timeout: 300 * 1000
             });
 
             await page.waitForSelector('.impression');
+
+            console.log('Page loaded. Scraping products...');
 
             const products = await page.evaluate(() => {
                 function convertArabicToEnglish(str) {
@@ -45,11 +51,13 @@ export async function startScraping() {
                     return str ? str.replace(/[٠-٩]/g, d => numerals[d]) : '';
                 }
 
-                const productElements = document.querySelectorAll('#__nuxt > div > div:nth-child(6) > div:nth-child(2) > div.mx-auto.w-full.max-w-\\[1440px\\].px-sm.my-md.px-sm.py-0 > div:nth-child(6) > div > div > div > div.grid.grid-cols-2.gap-x-xxs.sm\\:gap-y-lg.gap-y-md.pb-md.w-auto.sm\\:grid-cols-4 .impression');
+                const productElements = document.querySelectorAll('.impression');
+                console.log(productElements.length);
+
 
                 return Array.from(productElements).map(product => {
                     // Extract basic product details
-                    const titleEl = product.querySelector('div[class*="text-"] > a div:nth-child(2)');
+                    const titleEl = product.querySelector('.text-\\[16px\\]');
                     const colorDimensionEl = product.querySelector('div[class*="text-gray-dark"]');
                     const priceEl = product.querySelector('.price span');
                     const stockEl = product.querySelector('[data-stock-value]');
@@ -151,11 +159,13 @@ export async function startScraping() {
             // Save valid products to MongoDB
             if (validProducts.length > 0) {
                 try {
-                    await Product.insertManyWithUniqueUrls(validProducts);
+                    await handleBulkInsert(Product, validProducts);
                     totalProducts += validProducts.length;
                     console.log(`Saved ${validProducts.length} products from page ${currentPage}`);
                 } catch (error) {
-                    console.error(`Error saving products from page ${currentPage}:`, error);
+                    if (error.code === 11000) {
+                        console.log('Duplicate key error. Skipping duplicate products...');
+                    }
                 }
             }
 
@@ -175,7 +185,7 @@ export async function startScraping() {
                     .map(text => parseInt(convertArabicToEnglish(text)))
                     .filter(num => !isNaN(num));
 
-                const activePageEl = document.querySelector('.page-index.active h6');
+                const activePageEl = document.querySelector('.page-index.active');
                 if (!activePageEl) return false;
 
                 const currentPage = parseInt(convertArabicToEnglish(activePageEl.textContent));

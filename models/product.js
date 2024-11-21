@@ -161,4 +161,13 @@ productSchema.statics.insertManyWithUniqueUrls = async function(products) {
     return await this.insertMany(processedProducts, { ordered: false });
 };
 
+productSchema.post('save', function(error, doc, next) {
+    if (error.code === 11000) {
+        next(handleDuplicateKeyError(error));
+    } else {
+        next(error);
+    }
+});
+
+
 export const Product = mongoose.model('Product', productSchema);

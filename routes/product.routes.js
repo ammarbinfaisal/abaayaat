@@ -1,10 +1,9 @@
-// src/routes/product.routes.js
-
+import fs from 'fs';
 import express from 'express';
 import { Product } from '../models/product.js';
 import { createObjectCsvWriter } from 'csv-writer';
-import { convertArabicToEnglish } from '../utils/helpers.js';
 import { startScraping } from '../utils/scraper.js';
+import path from "path"
 
 const router = express.Router();
 
@@ -208,53 +207,6 @@ router.get('/products', async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch products', details: error.message });
-    }
-});
-
-// Get single product by SKU
-router.get('/products/:sku', async (req, res) => {
-    try {
-        const product = await Product.findOne({ sku: req.params.sku });
-        if (!product) {
-            return res.status(404).json({ error: 'Product not found' });
-        }
-        res.json(product);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch product', details: error.message });
-    }
-});
-
-// Update product
-router.put('/products/:sku', async (req, res) => {
-    try {
-        const product = await Product.findOneAndUpdate(
-            { sku: req.params.sku },
-            req.body,
-            { new: true, runValidators: true }
-        );
-        
-        if (!product) {
-            return res.status(404).json({ error: 'Product not found' });
-        }
-        
-        res.json(product);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to update product', details: error.message });
-    }
-});
-
-// Delete product
-router.delete('/products/:sku', async (req, res) => {
-    try {
-        const product = await Product.findOneAndDelete({ sku: req.params.sku });
-        
-        if (!product) {
-            return res.status(404).json({ error: 'Product not found' });
-        }
-        
-        res.json({ message: 'Product deleted successfully' });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to delete product', details: error.message });
     }
 });
 
